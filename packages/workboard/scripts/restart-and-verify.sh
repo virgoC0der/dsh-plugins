@@ -59,6 +59,9 @@ echo
 echo "--- /workboard/jira ---"
 curl -s -m 40 http://127.0.0.1:3080/workboard/jira | head -c 500
 echo
+echo "--- /workboard/icon ---"
+curl -s -m 20 -o /tmp/workboard-icon.png -w "http=%{http_code} type=%{content_type} bytes=%{size_download}\n" http://127.0.0.1:3080/workboard/icon
+echo
 echo "--- /workboard/calendar ---"
 curl -s -m 40 http://127.0.0.1:3080/workboard/calendar | head -c 400
 echo

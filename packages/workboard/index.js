@@ -61,6 +61,8 @@ const CONFIG_PATH = join(homedir(), '.dsh', 'workboard.json')
 const TOKEN_PATH = join(STATE_DIR, 'calendar-token.json')
 /** Dashboard storage: registered Workspaces live under tables.workspaces. */
 const WORKSPACE_STORE_PATH = join(homedir(), '.dsh', 'storages', 'workspace.json')
+/** Optional brand artwork served to the client, beside index.js. */
+const LOGO_PATH = fileURLToPath(new URL('assets/workboard-logo.png', import.meta.url))
 /** This package's own env file, beside index.js; holds the secrets. */
 const PLUGIN_ENV_PATH = fileURLToPath(new URL('.env', import.meta.url))
 /**
@@ -303,6 +305,32 @@ async function gitStatusFor(workspace) {
   }
   if (stash.ok) row.stash = stash.stdout.split('\n').filter((line) => line.trim() !== '').length
   return row
+}
+
+/**
+ * `GET /workboard/icon` — the package's brand artwork.
+ *
+ * Served from the host rather than inlined into the client bundle: it is a
+ * raster asset the reader may replace, and embedding it would both bloat the
+ * bundle and freeze it at build time. A missing file answers 404, which the
+ * client treats as "fall back to the built-in vector mark".
+ * @param {import('node:http').ServerResponse} res - response to own.
+ */
+async function handleIcon(res) {
+  let bytes = null
+  try {
+    bytes = await readFile(LOGO_PATH)
+  } catch {
+    sendJson(res, 404, { error: 'no brand artwork in this package', path: 'assets/workboard-logo.png' })
+    return
+  }
+  res.writeHead(200, {
+    'content-type': 'image/png',
+    // Content-addressed by hand: the file changes rarely and is small.
+    'cache-control': 'public, max-age=300',
+    'content-length': bytes.length,
+  })
+  res.end(bytes)
 }
 
 /** `GET /workboard/git` — git state for every registered workspace. */
@@ -734,6 +762,9 @@ async function dispatch(req, res, config) {
     return
   }
   switch (sub) {
+    case '/icon':
+      await handleIcon(res)
+      return
     case '/git':
       await handleGit(res)
       return
@@ -775,7 +806,7 @@ async function dispatch(req, res, config) {
       sendJson(res, 404, {
         error: 'unknown workboard route',
         path: sub,
-        routes: ['/git', '/github', '/jira', '/calendar', '/calendar/connect', '/calendar/callback', '/health'],
+        routes: ['/icon', '/git', '/github', '/jira', '/calendar', '/calendar/connect', '/calendar/callback', '/health'],
       })
   }
 }

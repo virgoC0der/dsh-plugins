@@ -116,8 +116,12 @@ window.__ModuleLoader__.load({
 			   click-through; only the board surface itself takes pointer events. */
 			".dswb-home{position:fixed;left:0;right:0;pointer-events:none;z-index:55}",
 			".dswb-board{pointer-events:auto;display:flex;flex-direction:column;min-width:0;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#1f2329);border:1px solid var(--dsw-alias-border-l2,rgba(31,35,41,.12));border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.10);overflow:hidden;font-size:13px;line-height:1.45}",
-			".dswb-board-head{flex:none;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(31,35,41,.08)}",
-			".dswb-board-title{font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:7px}",
+			".dswb-board-head{flex:none;display:flex;align-items:center;gap:11px;padding:10px 14px;border-bottom:1px solid rgba(31,35,41,.08)}",
+			/* The artwork only reads at 40px and up; below that the button uses the
+			   vector mark instead (see BrandLogo). */
+			".dswb-logo{flex:none;width:42px;height:42px;display:block;object-fit:contain}",
+			".dswb-board-heading{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}",
+			".dswb-board-title{font-size:14px;font-weight:600;letter-spacing:-.01em}",
 			".dswb-board-sub{color:#8f959e;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
 			".dswb-board-head .dswb-actions{margin-left:auto}",
 			".dswb-board-body{overflow-y:auto;overscroll-behavior:contain;min-height:0;padding:2px 0}",
@@ -222,6 +226,29 @@ window.__ModuleLoader__.load({
 		var GIT_MARK = '<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.5 2.5 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-4.25 8a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm6.5-9a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm-6.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></svg>';
 		/** The button's own mark: a board, not an emoji. */
 		var BOARD_MARK = '<svg viewBox="0 0 20 20" width="21" height="21" fill="currentColor" aria-hidden="true"><rect x="2.5" y="3.1" width="4.2" height="13.8" rx="1.6"/><rect x="7.9" y="3.1" width="4.2" height="8.7" rx="1.6"/><rect x="13.3" y="3.1" width="4.2" height="11.3" rx="1.6"/></svg>';
+
+		/**
+		 * The package's brand artwork, when the host half has one.
+		 *
+		 * The artwork is a detailed illustration, so it only reads at 40px and
+		 * above — which is why the 21px button keeps the vector mark instead. If
+		 * the asset is missing the component falls back to that mark, so a package
+		 * without artwork still renders a header.
+		 */
+		function BrandLogo(props) {
+			var failedState = React.useState(false);
+			var failed = failedState[0];
+			var setFailed = failedState[1];
+			if (failed) return jsx(Mark, { svg: BOARD_MARK });
+			return jsx("img", {
+				className: "dswb-logo",
+				src: BASE + "/icon",
+				alt: "",
+				"aria-hidden": true,
+				draggable: false,
+				onError: function () { setFailed(true); }
+			});
+		}
 
 		/** Render one inline mark; the markup is authored above, never user data. */
 		function Mark(props) {
@@ -933,11 +960,14 @@ window.__ModuleLoader__.load({
 						jsxs("header", {
 							className: "dswb-board-head",
 							children: [
+								jsx(BrandLogo, {}),
 								jsxs("span", {
-									className: "dswb-board-title",
-									children: [jsx(Mark, { svg: BOARD_MARK }), "My work today"]
+									className: "dswb-board-heading",
+									children: [
+										jsx("span", { className: "dswb-board-title", children: "My work today" }),
+										jsx("span", { className: "dswb-board-sub", children: status })
+									]
 								}),
-								jsx("span", { className: "dswb-board-sub", children: status }),
 								jsxs("span", {
 									className: "dswb-actions",
 									children: [

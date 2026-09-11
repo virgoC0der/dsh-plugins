@@ -46,6 +46,23 @@ The deck uses flat sections divided by hairlines in the board (so it reads as on
 page block) and bordered, independently scrolling cards in the floating panel.
 Both shells share one header builder and one fold control, so they cannot drift.
 
+### Brand artwork
+
+`assets/workboard-logo.png` is the package's brand illustration. It is served by
+the host half at `GET /workboard/icon` rather than inlined into the client
+bundle, so the asset stays replaceable and the bundle stays small.
+
+**It is deliberately not used for the button.** The artwork carries its identity
+in fine strokes and small details, which is exactly what is lost at the button's
+21 px glyph size: rendered at 21 px it is illegible, and it only reads from about
+40 px upward. The button therefore keeps the vector mark, which is legible at
+21 px by construction, and the artwork appears at 42 px in the board header where
+it can actually be seen. `scripts/inspect-image.mjs` renders any candidate asset
+at its real display size as ASCII, which is how that threshold was established.
+
+If the asset is missing, `BrandLogo` falls back to the vector mark and answers
+404, so a package without artwork still renders a complete header.
+
 ### Section marks
 
 Each section leads with an inline SVG mark. An out-of-tree plugin can only
@@ -268,6 +285,8 @@ dependency needs installing:
 node scripts/verify-ui.mjs        # drives the REAL GUI: button geometry, overlap, folding, new-conversation board
 node scripts/verify-context.mjs   # clicks real board rows, reads the composer's own value back
 node scripts/glyph-preview.mjs    # rasterises every inline mark to ASCII art
+node scripts/verify-logo.mjs      # brand artwork in the header, plus the vector fallback
+node scripts/inspect-image.mjs <path>   # any candidate asset: size, palette, bbox, ASCII at real size
 node scripts/measure-panel.mjs    # drives the REAL GUI: opens the panel, measures it
 node scripts/layout-harness.mjs   # extracts the REAL CSS from client.js, mounts the real DOM shape, measures it
 node scripts/probe-fab.mjs        # the button's box against the composer's box
