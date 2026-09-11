@@ -10,8 +10,9 @@
  *   - `git`      — local `git` invocations against the registered DSH Workspaces.
  *   - `github`   — the authenticated `gh` CLI (cross-repo PR search, then per-PR
  *                  enrichment for CI status and comment/review counts).
- *   - `jira`     — the local Desk API (`/api/v1/inbox` + `/api/v1/projects`),
- *                  which owns the Atlassian OAuth token exchange and refresh.
+ *   - `jira`     — the Jira Cloud REST API (`/rest/api/3/search/jql`, falling
+ *                  back to `/rest/api/3/search`), authenticated with HTTP Basic
+ *                  (account email + API token) from the plugin's own config.
  *   - `calendar` — Google Calendar REST with a token this plugin owns: the
  *                  authorization-code flow is served here too, under
  *                  `/workboard/calendar/connect` and `/workboard/calendar/callback`.

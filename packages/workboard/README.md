@@ -195,7 +195,6 @@ Nothing in this package assumes where else you keep credentials: the only paths
 it reads are its own `.env` and `~/.dsh/workboard.json`, both overridable.
 
 ### GitHub
-### GitHub
 
 Nothing to configure. The plugin resolves `gh` from `PATH` (then from
 `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`) and uses whichever account
