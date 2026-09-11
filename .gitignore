@@ -8,6 +8,9 @@ node_modules/
 dist/
 *.log
 
+# Local agent/tool run state — never part of a plugin.
+.omo/
+
 # Editor and OS noise.
 .DS_Store
 .idea/
