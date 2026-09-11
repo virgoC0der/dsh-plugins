@@ -1,0 +1,14 @@
+# Secrets and local state — never commit these.
+.env
+.env.local
+*.token.json
+
+# Dependencies and build output.
+node_modules/
+dist/
+*.log
+
+# Editor and OS noise.
+.DS_Store
+.idea/
+.vscode/
