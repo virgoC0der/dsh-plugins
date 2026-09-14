@@ -7,6 +7,7 @@ into a DSH profile independently.
 | Package | What it adds |
 | --- | --- |
 | [`packages/workboard`](packages/workboard) | A work dashboard in the Harness Web GUI: GitHub pull requests with CI and discussion state, Jira issues assigned to you grouped by project, today's Google Calendar agenda, and the git state of every registered workspace — plus click-to-add-context into the composer |
+| [`packages/browser`](packages/browser) | A real browser for the agent: CDP-driven tools that navigate, click, type, read the console and network, manage tabs, wait, upload, and scroll — with screenshots rendered inline in the conversation and, when the model accepts images, delivered to the model itself |
 
 ## How a plugin is put together
 

@@ -1,0 +1,40 @@
+{
+  "name": "dsh-browser",
+  "version": "0.1.0",
+  "description": "Browser automation for the DeepSeek Harness: CDP-driven tools that navigate, click, type, and read a real Chrome, with screenshots rendered inline in the conversation",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-tool"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "verify": "node scripts/cdp-smoke.mjs",
+    "verify:tools": "node scripts/verify-tools.mjs"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/virgoC0der/dsh-plugins.git",
+    "directory": "packages/browser"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "browser",
+    "cdp",
+    "chrome-devtools-protocol",
+    "automation",
+    "screenshot"
+  ]
+}
