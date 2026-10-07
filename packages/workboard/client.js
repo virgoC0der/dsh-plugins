@@ -99,10 +99,10 @@ window.__ModuleLoader__.load({
 			/* floating affordance: a round icon button. Its `bottom` is set from
 			   the measured composer rect at runtime, so it steps out of the way
 			   instead of covering the input card at narrow widths. */
-			".dswb-fab{position:fixed;right:20px;bottom:20px;z-index:60;pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:none;border-radius:50%;cursor:pointer;font:inherit;font-size:19px;line-height:1;color:#fff;background:var(--dsw-alias-state-business-primary,#4b6bfb);box-shadow:0 4px 16px rgba(0,0,0,.26);transition:transform .15s ease,box-shadow .15s ease,bottom .18s ease}",
+			".dswb-fab{position:fixed;right:20px;bottom:20px;z-index:60;pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));border-radius:50%;cursor:pointer;font:inherit;font-size:19px;line-height:1;color:var(--dsw-alias-label-primary,#1f2329);background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 4px 16px rgba(0,0,0,.22);transition:transform .15s ease,box-shadow .15s ease,bottom .18s ease}",
 			".dswb-fab:hover{transform:translateY(-1px) scale(1.04);box-shadow:0 6px 20px rgba(0,0,0,.32)}",
-			".dswb-fab:focus-visible{outline:2px solid #fff;outline-offset:2px}",
-			".dswb-fab[data-attention=true]{background:#cf222e}",
+			".dswb-fab:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4b6bfb);outline-offset:3px}",
+			".dswb-fab .dswb-mark{width:22px;height:22px;color:inherit}",
 			/* Badge rides the circle's corner, so the button itself stays round. */
 			".dswb-fab-count{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:#cf222e;color:#fff;border:2px solid var(--dsw-alias-bg-base,#fff);font-size:10px;font-weight:600;line-height:14px;text-align:center;box-sizing:content-box}",
 			".dswb-fab[data-attention=true] .dswb-fab-count{background:#1f2329;border-color:#fff}",
