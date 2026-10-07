@@ -1,0 +1,9 @@
+# The dsh-browser bundle layer: one insert over the profile root.
+#
+# The row's module is this package itself, so installing the bundle is all it
+# takes to mount both halves — the Host tool family and the Web client card.
+# `name` is resolved from this package's own directory, so the row keeps working
+# wherever the profile installed it.
+- insert:
+    - id: dsh-browser
+      name: dsh-browser

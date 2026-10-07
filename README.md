@@ -44,6 +44,32 @@ DSH profiles live under `$DSH_HOME/profiles/<name>` (by default `~/.dsh/profiles
 A profile is a package that depends on the plugins it uses and a
 `cordis.patch.yml` that lists them.
 
+### Through the built-in installer
+
+Every package here declares `dsh.bundle`, so DSH's own plugin manager can install
+it: open **Plugins** in the Web sidebar, choose **Add plugin**, and paste the
+package's Git address. The same operation is on the CLI:
+
+```sh
+dsh plugin --profile <name> add "github:virgoC0der/dsh-plugins#path:/packages/workboard"
+dsh plugin --profile <name> add "github:virgoC0der/dsh-plugins#path:/packages/browser"
+```
+
+`#path:` is pnpm's
+[subdirectory form](https://pnpm.io/package-sources#install-from-a-subdirectory-of-a-git-repository),
+which is what makes a monorepo package installable by address. The manager adds
+the dependency, selects the bundle, and recomposes a live profile; a browser
+refresh is enough afterwards.
+
+The package's own `cordis.patch.yml` is the bundle layer, so nothing has to be
+added to the profile by hand. A plugin installed this way is managed from the
+Plugins page — switch it off, or uninstall it, from there.
+
+### By hand, from a local checkout
+
+The manual route stays the one to use while developing a plugin: it installs by
+link, so an edit is picked up without reinstalling.
+
 1. Add the package as a dependency of the profile. A local checkout installs by
    link, which is what makes development against it practical:
 

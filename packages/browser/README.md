@@ -86,6 +86,16 @@ registered once and the verb is checked inside the handler.
 
 ## Installing into a profile
 
+The package declares `dsh.bundle`, so DSH's own plugin manager installs it — from
+the Web sidebar's **Plugins → Add plugin**, or on the CLI:
+
+```sh
+dsh plugin --profile <name> add "github:virgoC0der/dsh-plugins#path:/packages/browser"
+```
+
+The package's own `cordis.patch.yml` is the bundle layer, so no profile file has
+to be edited by hand. To install from a local checkout instead, while developing:
+
 ```jsonc
 // ~/.dsh/profiles/web/package.json
 {
