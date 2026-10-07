@@ -82,19 +82,28 @@ read-back, so the shapes can be reviewed without opening an image.
 ### Where the board appears
 
 Both "home" screens are keyed on the session list's **settled** phase
-(`state.phase === 'ready'`), which matters because `current === undefined` is
-also the pre-pull state:
+(`state.phase === 'ready'`), which matters because "nothing is on screen" is also
+the pre-pull state:
 
-- `current === undefined` — the New Session view with no session at all.
-- `byId[current].blank === true` — a conversation that was just opened and has no
-  turns yet. New Session *opens a real (blank) session* rather than clearing the
-  selection, so this arm is what makes the board appear on a new conversation.
+- **No conversation on screen** — the New Session view.
+- **A conversation with no turns yet** — New Session *opens a real (blank)
+  session* rather than clearing the selection, so this arm is what makes the
+  board appear on a new conversation.
+
+Which conversation is on screen follows the shell's own rule rather than a field
+of its own: `retainedBy.mainView > 0`, the same test the shell's document title
+uses to pick the session it names. The list snapshot does not carry a `current`
+id — 0.2.x publishes `ids` and `byId` only — so a plugin that tests
+`current === undefined` reads *every* screen as the new-session screen and leaves
+the board up over an open conversation. `mainViewSession()` still honours a
+`current` when one is present, so both snapshot shapes work.
 
 ### Composer-aware placement
 
 The shell's class names are content-hashed, so the composer is located
-structurally: the only `textarea` in the shell, walked up to the nearest ancestor
-that actually paints a surface (non-transparent background plus rounded corners).
+structurally: the composer's editable element — a `textarea` where the shell uses
+one, otherwise its `contenteditable` — walked up to the nearest ancestor that
+actually paints a surface (non-transparent background plus rounded corners).
 
 Two placements derive from that measurement, re-taken on resize and on a slow
 tick because the composer moves between the centred (blank session) and bottom
@@ -125,7 +134,8 @@ Details that matter:
 - **Idempotent.** Adding the same row twice appends nothing and the row says
   `already added`, so a double click cannot corrupt the draft.
 - **Honest feedback.** Each row reports `✓ added`, `already added`, or
-  `no composer` — the last one when there is genuinely no composer to write to.
+  `no composer` — the last one when there is genuinely no composer to write to,
+  or when the write did not survive in the field it was sent to.
 - **The source link survives.** The row keeps a small `↗` for opening the PR or
   issue, so pulling something in never costs the reader the ability to go look
   at it.
@@ -140,16 +150,29 @@ session's input facade. `ctx.inputTriggers` *can* insert a proper atomic
 reference, but only through a per-session controller resolved from a
 session-scope `ctx`, which a root-scoped board does not have.
 
-So `writeDraft` sets the composer field through the **native prototype value
-setter** and dispatches a real `input` event — the same path a keystroke takes.
-The shell's input machine, trigger pipeline, and draft persistence mirror all
-update normally; a plain `.value =` assignment would be swallowed by React's
-controlled-component value tracking.
+So `writeDraft` drives the field the way a keystroke does, and the two editable
+shapes need different commands:
 
-The verification does not trust the plugin's own view of this: it clicks a real
-row and then asserts the composer **enables its send button**, which only happens
-once the input machine actually holds the text. If a future shell exposes a
-draft API, this bridge is the single function to replace.
+- A **`textarea`** takes the native prototype value setter and a real `input`
+  event; a plain `.value =` assignment would be swallowed by React's
+  controlled-component value tracking.
+- The composer current shells ship is a **Lexical `contenteditable`**
+  (`data-lexical-editor`), where assigning `textContent` is worse than useless:
+  Lexical renders from its own model, so the text appears and is wiped by the
+  next reconciliation. `execCommand('insertText')` over a select-all fires the
+  real `beforeinput`/`input` pair the editor commits from — but the two steps
+  **cannot share a task**. Lexical adopts a DOM selection into its own model on a
+  later frame, and a command issued in the same task types into a stale (or
+  absent) selection and silently does nothing. `writeDraft` therefore selects,
+  yields a frame, inserts, yields again, and **reads the draft back**: the
+  outcome a row shows is what the field actually holds, not what the command
+  claimed. Line breaks are compared whitespace-insensitively because a rich-text
+  composer stores them as paragraphs and reads back without the separators.
+
+The verification does not trust the plugin's own view of this either: it clicks a
+real row and then asserts the composer **enables its send button**, which only
+happens once the input machine actually holds the text. If a future shell exposes
+a draft API, this bridge is the single function to replace.
 
 ### Folding
 
@@ -251,8 +274,10 @@ tool's stored token.
    `access_type=offline` and `prompt=consent` are both set so a refresh token is
    actually issued, and Google's non-rotating refresh token is reused on refresh.
 
-The calendar card shows a **Connect Google Calendar →** link whenever it is not
-connected yet.
+The calendar card shows a **Connect Google Calendar →** link while it is not
+connected yet, and only while the OAuth client credentials above are present:
+without them the consent flow has nowhere to send the browser, so the card names
+what is missing instead of offering a link that can only answer 400.
 
 All-day entries (holidays, "Office", birthdays) are filtered out of the card —
 only timed meetings are actionable on a work board. The filter lives in the
@@ -339,12 +364,16 @@ bounded surface and chaining its scroll into the page behind it would be wrong.
 - Slack unread messages are **not** implemented: reading unread requires a Slack
   user or bot token, which this plugin does not have. A webhook cannot read.
 - The homepage board waits for the session list's settled phase (`phase ===
-  'ready'`) before showing. Keying only on `current === undefined` made it flash
+  'ready'`) before showing. Keying only on "no session on screen" made it flash
   on every page load and vanish once the last session resolved.
-- The composer lookup depends on the shell using a `textarea` for input and a
-  painted, rounded ancestor as its card. If a future shell changes either, the
-  button silently falls back to a fixed bottom-right position and the board to
-  its default padding — degraded, never broken.
+- The composer lookup depends on the shell's editable element — a `textarea` or a
+  `contenteditable` — and a painted, rounded ancestor as its card. If a future
+  shell changes either, the button silently falls back to a fixed bottom-right
+  position and the board to its default padding — degraded, never broken.
+- Adding context to a rich-text composer is a two-frame bridge, and the plugin
+  reports `no composer` rather than claiming success when the editor does not
+  take the write. A future shell that exposes a draft API removes the bridge and
+  this caveat together.
 
 ## License
 

@@ -623,12 +623,18 @@ async function handleCalendar(res, config) {
   const window = dayWindow(config.google.timeZone)
   const { token, error } = await accessToken(config)
   if (token === null) {
+    // The connect link is only offered when consenting can actually succeed:
+    // without client credentials the flow has nowhere to send the browser, and
+    // the card would advertise a link that can only answer 400.
+    const connectable = config.google.clientId !== ''
     sendJson(res, 200, {
       date: window.date,
       events: [],
       connected: (await readToken()) !== null,
-      connectUrl: ROUTE_PREFIX + '/calendar/connect',
-      unavailable: error,
+      connectUrl: connectable ? ROUTE_PREFIX + '/calendar/connect' : null,
+      unavailable: connectable
+        ? error
+        : 'Google OAuth client credentials are not configured: set google.clientId and google.clientSecret in ~/.dsh/workboard.json',
     })
     return
   }

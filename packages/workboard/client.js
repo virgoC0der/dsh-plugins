@@ -277,6 +277,60 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
+		 * Whether two drafts hold the same content.
+		 *
+		 * A rich-text composer stores line breaks as paragraphs, so its text reads
+		 * back with the separators dropped altogether ("header:- PR …" for a
+		 * two-line draft). Comparing whitespace-stripped text is what makes "did
+		 * the write survive?" answerable without depending on how the editor
+		 * renders line breaks — it is a confirmation, not a diff.
+		 * @param {string} left - one draft.
+		 * @param {string} right - the other draft.
+		 * @returns {boolean} whether they hold the same text.
+		 */
+		function sameDraft(left, right) {
+			var compact = function (value) { return String(value === null || value === undefined ? "" : value).replace(/\s+/gu, ""); };
+			return compact(left) === compact(right);
+		}
+
+		/** Select everything inside one editable element, so the next text input replaces the draft instead of landing beside it. */
+		function selectAllOf(field) {
+			try {
+				var selection = window.getSelection();
+				if (selection === null) return;
+				var range = document.createRange();
+				range.selectNodeContents(field);
+				selection.removeAllRanges();
+				selection.addRange(range);
+			} catch (_error) {
+				/* the selection is advisory: the input command still lands without it */
+			}
+		}
+
+		/**
+		 * Resolve once the editor has had a chance to observe the selection we just
+		 * set. One frame is what a rich-text editor needs to adopt a DOM selection
+		 * into its own model; the timer is the fallback for a throttled frame loop.
+		 * @returns {Promise<void>} a promise that settles on the next turn.
+		 */
+		function afterEditorTick() {
+			return new Promise(function (resolve) {
+				var settled = false;
+				var finish = function () {
+					if (settled) return;
+					settled = true;
+					resolve();
+				};
+				try {
+					requestAnimationFrame(function () { setTimeout(finish, 0); });
+				} catch (_error) {
+					/* the timer below still settles the promise */
+				}
+				setTimeout(finish, 64);
+			});
+		}
+
+		/**
 		 * Write a full draft back into the composer.
 		 *
 		 * There is no public API for this. `InputActions.setDraft` is composed only
@@ -286,26 +340,54 @@ window.__ModuleLoader__.load({
 		 * can insert a reference, but only through a per-session controller resolved
 		 * from a session-scope ctx, which a root-scoped board does not have.)
 		 *
-		 * So the write goes through the field's own `input` event — the same path a
-		 * keystroke takes. The shell's input machine, its trigger pipeline, and the
-		 * draft persistence mirror all update normally, and the native prototype
-		 * setter is used because a plain `.value =` assignment is swallowed by
-		 * React's controlled-component value tracking.
+		 * So the write goes through the browser's own text-input path, which is
+		 * what the shell's input machine and its draft mirror listen to. The two
+		 * editable shapes need different commands:
+		 *
+		 * - a `textarea` takes the native prototype value setter, because a plain
+		 *   `.value =` assignment is swallowed by React's value tracking;
+		 * - the composer current shells ship is a Lexical `contenteditable`
+		 *   (`data-lexical-editor`), and there a `textContent` assignment is worse
+		 *   than useless: Lexical renders from its own model, so the text appears
+		 *   and is wiped by the next reconciliation. `execCommand('insertText')`
+		 *   over a select-all fires the real `beforeinput`/`input` pair the editor
+		 *   commits from — but only once it has adopted that selection, so the two
+		 *   steps cannot share a task: issued together, the command types into a
+		 *   stale selection and silently does nothing.
+		 *
+		 * The result is read back rather than assumed, so a write that did not
+		 * land reports itself instead of leaving the row claiming `added`.
+		 * @param {HTMLElement} field - the composer's editable element.
 		 * @param {string} text - the complete next draft.
-		 * @returns {boolean} whether the write was dispatched.
+		 * @returns {Promise<boolean>} whether the draft is in the field afterwards.
 		 */
-		function writeDraft(text) {
-			var field = composerField();
-			if (field === null) return false;
+		function writeDraft(field, text) {
 			if (field.tagName === "TEXTAREA") {
 				var setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
-				if (setter === undefined || setter.set === undefined) return false;
+				if (setter === undefined || setter.set === undefined) return Promise.resolve(false);
 				setter.set.call(field, text);
-			} else {
-				field.textContent = text;
+				field.dispatchEvent(new Event("input", { bubbles: true }));
+				return Promise.resolve(readDraft(field) === text);
 			}
-			field.dispatchEvent(new Event("input", { bubbles: true }));
-			return true;
+			field.focus();
+			selectAllOf(field);
+			return afterEditorTick().then(function () {
+				var accepted = false;
+				try {
+					accepted = document.execCommand("insertText", false, text);
+				} catch (_error) {
+					accepted = false;
+				}
+				if (!accepted) {
+					// Last resort for a contenteditable that does not answer the
+					// input command: mutate the DOM and announce the same event by
+					// hand. Whether it stuck is the read-back below, not this.
+					selectAllOf(field);
+					field.textContent = text;
+					field.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+				}
+				return afterEditorTick().then(function () { return sameDraft(readDraft(field), text); });
+			});
 		}
 
 		/**
@@ -324,24 +406,30 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * Add one line of board context to the composer draft.
+		 *
+		 * Settles only once the write has been read back from the field, so the
+		 * outcome a row shows is what the composer actually holds — an editor that
+		 * refused the write reports "no composer" rather than claiming `added`.
 		 * @param {string} line - the reference line.
-		 * @returns {'added'|'duplicate'|'unavailable'} the outcome, surfaced in the UI.
+		 * @returns {Promise<'added'|'duplicate'|'unavailable'>} the outcome.
 		 */
 		function addContextToComposer(line) {
 			var field = composerField();
 			var current = readDraft(field);
-			if (current === null) return "unavailable";
+			if (current === null) return Promise.resolve("unavailable");
 			var next = mergeContext(current, line);
-			if (next === current) return "duplicate";
-			if (!writeDraft(next)) return "unavailable";
-			// Leave the caret after the inserted text so typing continues naturally.
-			try {
-				field.focus();
-				if (typeof field.setSelectionRange === "function") field.setSelectionRange(next.length, next.length);
-			} catch (_error) {
-				/* focus is a nicety, never a failure */
-			}
-			return "added";
+			if (next === current) return Promise.resolve("duplicate");
+			return writeDraft(field, next).then(function (written) {
+				if (!written) return "unavailable";
+				// Leave the caret after the inserted text so typing continues naturally.
+				try {
+					field.focus();
+					if (typeof field.setSelectionRange === "function") field.setSelectionRange(next.length, next.length);
+				} catch (_error) {
+					/* focus is a nicety, never a failure */
+				}
+				return "added";
+			}, function () { return "unavailable"; });
 		}
 
 		/** Reference line for a GitHub pull request. */
@@ -1046,6 +1134,39 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
+		 * The conversation the shell currently shows in its main view, or
+		 * `undefined` when it shows none.
+		 *
+		 * The list snapshot's shape moved: an older shell carried `current` (the
+		 * selected session id) beside `byId`, while 0.2.x publishes `ids` and
+		 * `byId` only and marks the conversation on screen by retaining it —
+		 * `retainedBy.mainView` is the very rule the shell's own document title
+		 * reads. Testing `state.current === undefined` against a snapshot that
+		 * never carries it made every screen look like the new-session screen, so
+		 * the board stayed up over an open conversation.
+		 * @param {object} state - the sessions list snapshot.
+		 * @returns {object | undefined} the on-screen session row, when there is one.
+		 */
+		function mainViewSession(state) {
+			var byId = state.byId;
+			if (byId === undefined || byId === null) return undefined;
+			if (state.current !== undefined) {
+				var selected = byId[state.current];
+				return selected === undefined ? undefined : selected;
+			}
+			var rows = typeof byId.values === "function"
+				? Array.prototype.slice.call(byId.values())
+				: Object.keys(byId).map(function (key) { return byId[key]; });
+			for (var index = 0; index < rows.length; index += 1) {
+				var row = rows[index];
+				if (row === undefined || row === null) continue;
+				var retainedBy = row.retainedBy;
+				if (retainedBy !== undefined && retainedBy !== null && retainedBy.mainView > 0) return row;
+			}
+			return undefined;
+		}
+
+		/**
 		 * Entry component for the `shell.overlay` list slot.
 		 *
 		 * Root-scoped slots receive the framework's global standard props, so
@@ -1066,13 +1187,8 @@ window.__ModuleLoader__.load({
 			var added = addState[0];
 			var setAdded = addState[1];
 			var timers = React.useRef({});
-			/**
-			 * Push one board row into the composer as context, then show the outcome
-			 * on that row for a moment. Feedback is per row and always reports what
-			 * actually happened — "no composer" is shown rather than swallowed.
-			 */
-			var addContext = React.useCallback(function (id, line) {
-				var outcome = addContextToComposer(line);
+			/** Show one row's outcome for a moment, replacing whatever it showed before. */
+			var reportOutcome = React.useCallback(function (id, outcome) {
 				setAdded(function (previous) {
 					var next = Object.assign({}, previous);
 					next[id] = outcome;
@@ -1089,6 +1205,19 @@ window.__ModuleLoader__.load({
 					});
 				}, outcome === "added" ? 1800 : 2600);
 			}, []);
+			/**
+			 * Push one board row into the composer as context, then show the outcome
+			 * on that row for a moment. Feedback is per row and always reports what
+			 * actually happened — "no composer" is shown rather than swallowed. The
+			 * write settles on a later tick, so the row updates when it does.
+			 */
+			var addContext = React.useCallback(function (id, line) {
+				addContextToComposer(line).then(function (outcome) {
+					reportOutcome(id, outcome);
+				}, function () {
+					reportOutcome(id, "unavailable");
+				});
+			}, [reportOutcome]);
 			React.useEffect(function () {
 				var pending = timers.current;
 				return function () {
@@ -1098,19 +1227,19 @@ window.__ModuleLoader__.load({
 			/**
 			 * The board's two home screens, both keyed on the session list's SETTLED
 			 * phase:
-			 *   - `current === undefined` — the New Session view with no session at all.
-			 *   - `current.blank` — a conversation that was just opened and has no
-			 *     turns yet. New Session opens a real (blank) session rather than
-			 *     clearing the selection, so this arm is what makes the board appear
-			 *     when a new conversation is opened.
-			 * The phase gate matters because `current === undefined` is ALSO the
+			 *   - no conversation on screen — the New Session view.
+			 *   - a conversation that was just opened and has no turns yet. New
+			 *     Session opens a real (blank) session rather than clearing the
+			 *     selection, so this arm is what makes the board appear when a new
+			 *     conversation is opened.
+			 * The phase gate matters because "nothing is on screen" is ALSO the
 			 * pre-pull state, which made the board flash on every page load.
 			 */
 			var atHome = props.useSessions(function (state) {
 				if (state.phase !== "ready") return false;
-				if (state.current === undefined) return true;
-				var row = state.byId ? state.byId[state.current] : undefined;
-				return row !== undefined && row !== null && row.blank === true;
+				var row = mainViewSession(state);
+				if (row === undefined || row === null) return true;
+				return row.blank === true;
 			});
 			var closePanel = React.useCallback(function () { setOpen(false); }, []);
 
